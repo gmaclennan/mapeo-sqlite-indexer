@@ -236,10 +236,21 @@ export default class SqliteIndexer {
 
       if (!existing) {
         this.#dbApi.writeDoc(doc, [])
+      } else if (
+        existing.versionId === doc.versionId ||
+        existing.forks.includes(doc.versionId)
+      ) {
+        // This version is already indexed (e.g. the same data was re-synced
+        // or re-indexed), so there is nothing new to index. Nothing can need
+        // pruning from existing forks here: forks are never linked, and all
+        // of this doc's links became linked when it was first indexed.
+        continue
       } else if (this.isLinked(existing.versionId)) {
         // console.log('existing linked', existing.version)
-        // The existing doc for this ID is now linked, so we can replace it
-        this.#dbApi.writeDoc(doc, [])
+        // The existing doc for this ID is now linked, so we can replace it.
+        // Any unresolved forks of the existing doc (not pruned above by this
+        // doc's links) are still unlinked, so they are forks of the new head.
+        this.#dbApi.writeDoc(doc, existing.forks)
       } else {
         // console.log('is forked', doc, existing)
         // Document is forked, so we need to select a "winner"
