@@ -1,5 +1,12 @@
 # Plan: fixing the fork-tracking design limitations
 
+> **Status: IMPLEMENTED (Option B).** The candidate table described below
+> is now part of the indexer. The former LIMITATION tests in
+> `test/winner-staleness.test.js` assert the corrected behaviour, and
+> `test/convergence-fuzz.test.js` verifies order-independence in all three
+> timestamp regimes (monotonic, equal, skewed). The rest of this document
+> is kept as design background.
+
 This is a plan to fix the two known correctness limitations of the indexer,
 pinned by the LIMITATION tests in `test/winner-staleness.test.js` and found by
 property-based testing (`test/convergence-fuzz.test.js` covers the regime

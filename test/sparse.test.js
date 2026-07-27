@@ -58,6 +58,26 @@ test('history arriving newest-first one batch at a time', (t) => {
   })
 })
 
+test('a doc that links itself leaves the existing head in place', (t) => {
+  const { indexer, api, cleanup } = create()
+  t.after(cleanup)
+
+  const updatedAt = new Date().toISOString()
+  indexer.batch([{ docId: 'A', versionId: '1', links: [], updatedAt }])
+  // Degenerate input: a doc that links its own versionId (and the head).
+  // It removes the head from the candidates but is itself linked, so no
+  // valid head candidate is known: the existing head is left in place.
+  indexer.batch([{ docId: 'A', versionId: '2', links: ['2', '1'], updatedAt }])
+
+  assert.deepEqual(api.getDoc('A'), {
+    docId: 'A',
+    versionId: '1',
+    links: [],
+    forks: [],
+    updatedAt,
+  })
+})
+
 test('two sides of a fork syncing without their common ancestor', (t) => {
   const { indexer, api, cleanup } = create()
   t.after(cleanup)

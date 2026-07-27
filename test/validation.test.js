@@ -15,6 +15,13 @@ const VALID_DOCS_TABLE = `CREATE TABLE docs (
 const VALID_BACKLINKS_TABLE = `CREATE TABLE backlinks
   (versionId TEXT PRIMARY KEY NOT NULL) WITHOUT ROWID`
 
+const VALID_CANDIDATES_TABLE = `CREATE TABLE candidates (
+  docId TEXT NOT NULL,
+  versionId TEXT NOT NULL,
+  doc TEXT NOT NULL,
+  PRIMARY KEY (docId, versionId)
+) WITHOUT ROWID`
+
 /** @param {string[]} statements */
 function createDb(...statements) {
   const db = new Database(':memory:')
@@ -27,6 +34,7 @@ function createIndexer(db) {
   return new SqliteIndexer(db, {
     docTableName: 'docs',
     backlinkTableName: 'backlinks',
+    candidateTableName: 'candidates',
   })
 }
 
@@ -115,6 +123,37 @@ test('throws if the wrong column is the primary key', () => {
   assert.throws(() => createIndexer(db))
 })
 
+test('throws if the candidates table does not exist', () => {
+  const db = createDb(VALID_DOCS_TABLE, VALID_BACKLINKS_TABLE)
+  assert.throws(() => createIndexer(db), /Table candidates does not exist/)
+})
+
+test('throws if the candidates table is missing a column', () => {
+  const db = createDb(
+    VALID_DOCS_TABLE,
+    VALID_BACKLINKS_TABLE,
+    `CREATE TABLE candidates (
+      docId TEXT NOT NULL,
+      versionId TEXT NOT NULL,
+      PRIMARY KEY (docId, versionId)
+    ) WITHOUT ROWID`,
+  )
+  assert.throws(() => createIndexer(db), /must have a column 'doc'/)
+})
+
+test('throws if the candidates table has the wrong primary key', () => {
+  const db = createDb(
+    VALID_DOCS_TABLE,
+    VALID_BACKLINKS_TABLE,
+    `CREATE TABLE candidates (
+      docId TEXT NOT NULL,
+      versionId TEXT PRIMARY KEY NOT NULL,
+      doc TEXT NOT NULL
+    ) WITHOUT ROWID`,
+  )
+  assert.throws(() => createIndexer(db), /should have pk=/)
+})
+
 test('a valid schema with extra columns is accepted', () => {
   const db = createDb(
     `CREATE TABLE docs (
@@ -126,6 +165,7 @@ test('a valid schema with extra columns is accepted', () => {
       extra TEXT
     ) WITHOUT ROWID`,
     VALID_BACKLINKS_TABLE,
+    VALID_CANDIDATES_TABLE,
   )
   assert.doesNotThrow(() => createIndexer(db))
 })

@@ -44,6 +44,18 @@ The database must also include a table for storing "backlinks" (used internally 
     (versionId TEXT PRIMARY KEY NOT NULL)
 ```
 
+And a table for storing "candidates" (used internally to store every version that could currently be the head, so that the winning head can be re-selected as new versions arrive, independent of the order they arrive in):
+
+```sql
+  CREATE TABLE IF NOT EXISTS candidates
+    (
+      docId TEXT NOT NULL,
+      versionId TEXT NOT NULL,
+      doc TEXT NOT NULL,
+      PRIMARY KEY (docId, versionId)
+    )
+```
+
 For maximum performance, activate [Write-Ahead Logging](https://sqlite.org/wal.html) and create the tables [`WITHOUT ROWID`](https://sqlite.org/withoutrowid.html).
 
 ## Table of Contents
@@ -52,7 +64,7 @@ For maximum performance, activate [Write-Ahead Logging](https://sqlite.org/wal.h
 - [Usage](#usage)
 - [API](#api)
 - [Benchmarks](#benchmarks)
-- [Known limitations](#known-limitations)
+- [Upgrading from v1](#upgrading-from-v1)
 - [Maintainers](#maintainers)
 - [Contributing](#contributing)
 - [License](#license)
@@ -94,6 +106,17 @@ db.prepare(
   WITHOUT ROWID`,
 ).run()
 
+db.prepare(
+  `CREATE TABLE IF NOT EXISTS candidates
+  (
+    docId TEXT NOT NULL,
+    versionId TEXT NOT NULL,
+    doc TEXT NOT NULL,
+    PRIMARY KEY (docId, versionId)
+  )
+  WITHOUT ROWID`,
+).run()
+
 const docs = [
   { docId: 'A', versionId: '1', links: [], updatedAt: '2023-01-01T00:00:01Z' },
   {
@@ -119,6 +142,7 @@ const docs = [
 const indexer = new SqliteIndexer(db, {
   docTableName: 'docs',
   backlinkTableName: 'backlinks',
+  candidateTableName: 'candidates',
 })
 
 indexer.batch(docs)
@@ -138,7 +162,7 @@ console.log(A)
 
 ### const indexer = new SqliteIndexer(db, opts)
 
-The constructor checks that the tables named by `opts.docTableName` and `opts.backlinkTableName` exist and have the required columns (see above), and throws if they do not.
+The constructor checks that the tables named by `opts.docTableName`, `opts.backlinkTableName` and `opts.candidateTableName` exist and have the required columns (see above), and throws if they do not.
 
 ### db
 
@@ -166,12 +190,19 @@ Type: `string`
 
 The name of the table for storing backlinks (used internally for indexing).
 
+#### opts.candidateTableName
+
+_Required_\
+Type: `string`
+
+The name of the table for storing head candidates (used internally for indexing).
+
 #### opts.getWinner
 
 _Optional_\
 Type: `(docA, docB) => docA | docB`
 
-Function used to determine the "winning" version when a document is forked. It is called with two documents and must return one of them. By default the version with the later `updatedAt` value wins, with ties broken by choosing the higher `versionId` (comparing strings), so that the winner is deterministic. A custom `getWinner` should likewise implement a deterministic total order over versions, so that the same winner is chosen whatever order documents are indexed in.
+Function used to determine the "winning" version when a document is forked. It is called with two documents and must return one of them. By default the version with the later `updatedAt` value wins, with ties broken by choosing the higher `versionId` (comparing strings). The head of a document is the `getWinner`-maximum over all of its current candidates (unlinked versions), so provided `getWinner` is a deterministic [total order](https://en.wikipedia.org/wiki/Total_order) (the default is), the indexed head does not depend on the order documents are indexed in — including when device clocks are skewed or `updatedAt` values tie.
 
 ### indexer.batch(docs)
 
@@ -188,15 +219,15 @@ The document stored in SQLite will have a `forks` column which is a JSON-encoded
 
 ### indexer.deleteAll()
 
-Delete all documents and backlinks. Useful if you want to reset the index.
+Delete all documents, backlinks and candidates. Useful if you want to reset the index.
 
 ## Benchmarks
 
 Run `npm run bench` to benchmark the indexer across several realistic scenarios (initial creates, linear edits, forks, and out-of-order sync) — see the header of [`bench.js`](./bench.js) for options. Findings from profiling and benchmarking are written up in [PERFORMANCE.md](./PERFORMANCE.md).
 
-## Known limitations
+## Upgrading from v1
 
-Forks are stored as bare `versionId`s, so the indexer can never re-run `getWinner` against a fork after the fact. If device clocks are skewed (a causally-newer version has an older `updatedAt`) or `updatedAt` values tie across a fork, the indexed head can depend on the order in which documents arrive, and a head that is later superseded may not be replaced. Indexing is fully order-independent when each edit's `updatedAt` is newer than its parent's, which holds in practice when device clocks are roughly in sync. See [`test/winner-staleness.test.js`](./test/winner-staleness.test.js) for details, and [`FORK-TRACKING-PLAN.md`](./FORK-TRACKING-PLAN.md) for a plan to fix this.
+v2 requires a new `candidates` table (see the schema above) and the new `candidateTableName` option. The candidate table is what makes head selection independent of document arrival order (see [`FORK-TRACKING-PLAN.md`](./FORK-TRACKING-PLAN.md) for the design background); earlier versions could index a stale or order-dependent head when device clocks were skewed or `updatedAt` values tied. Existing databases must be re-indexed after upgrading: create the new table, call `indexer.deleteAll()`, and re-index all documents from their source.
 
 ## Maintainers
 

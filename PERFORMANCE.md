@@ -87,3 +87,25 @@ For future experiments, `test/utils.js` and `bench.js` still accept an
 `INDEXER_IMPL` env var pointing at an alternative implementation, so a
 candidate rewrite can be validated against the full test suite and
 benchmarked without touching `index.js`.
+
+## Candidate-table fix (v2)
+
+The fork-tracking fix (see FORK-TRACKING-PLAN.md) stores the full document
+of every unresolved fork in a `candidates` table so `getWinner` can be
+re-run over all heads. Measured against the previous implementation
+(file-backed WAL, best of 3 interleaved rounds, batch size 100):
+
+| scenario | docs/sec before | docs/sec after | ratio |
+| -------- | --------------- | -------------- | ----- |
+| create   | ~18,000         | ~18,000        | 1.00x |
+| edit     | ~12,500         | ~12,500        | 1.00x |
+| fork     | ~16,000         | ~16,000        | 1.00x |
+| sync     | ~13,500         | ~9,500         | 0.70x |
+
+create/edit/fork run the same number of statements as before (the
+candidate table is only touched when the fork set changes). The `sync`
+scenario shuffles the entire history globally, which makes nearly every
+arrival a transient fork — the extra cost is committing candidate-table
+pages in almost every transaction. This is the worst case: real sync
+reads each peer's append-only log roughly in order, so per-document
+arrival is mostly causal and fork churn is far lower.

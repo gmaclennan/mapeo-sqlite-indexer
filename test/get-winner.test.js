@@ -27,6 +27,7 @@ test('custom getWinner option is used to select the head', (t) => {
   const indexer = new SqliteIndexer(db, {
     docTableName: 'docs',
     backlinkTableName: 'backlinks',
+    candidateTableName: 'candidates',
     getWinner: (docA, docB) => {
       if (docA.updatedAt < docB.updatedAt) return docA
       if (docB.updatedAt < docA.updatedAt) return docB

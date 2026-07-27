@@ -13,11 +13,12 @@ import { create } from './utils.js'
 //      {head} ∪ forks equals exactly the set of delivered-but-unlinked
 //      versions of the document
 //
-// Timestamps here are monotonic (every edit is newer than its parent, as
-// when device clocks are well behaved). With clock skew or identical
-// updatedAt values across a fork, the current design is NOT fully
-// order-independent — see the known-limitation tests in
-// winner-staleness.test.js.
+// Runs in three timestamp regimes: monotonic (every edit newer than its
+// parent — well-behaved device clocks), equal (all updatedAt identical, so
+// the winner is decided purely by the versionId tie-break), and skewed
+// (edits are sometimes older than their parents — wrong device clocks).
+// The candidate table makes indexing order-independent in all three; see
+// winner-staleness.test.js for the targeted regression tests.
 
 /** Deterministic pseudo-random number generator (mulberry32) */
 function makeRandom(seed) {
@@ -53,12 +54,13 @@ function shuffle(rnd, arr) {
 }
 
 /**
- * Generate a random version history for 1-3 docIds, with monotonically
- * increasing timestamps, then drop ~10% of docs (never-synced versions).
+ * Generate a random version history for 1-3 docIds, then drop ~10% of
+ * docs (never-synced versions).
  * @param {() => number} rnd
+ * @param {'monotonic' | 'equal' | 'skewed'} clockMode
  * @returns {import('../index.js').IndexableDocument[]}
  */
-function generateDocs(rnd) {
+function generateDocs(rnd, clockMode) {
   /** @type {import('../index.js').IndexableDocument[]} */
   const docs = []
   let vCounter = 0
@@ -70,7 +72,12 @@ function generateDocs(rnd) {
     // Mapeo version ids
     const newVersion = () =>
       `${((rnd() * 0xffff) | 0).toString(16).padStart(4, '0')}-${vCounter++}`
-    const ts = () => new Date((clock += 1000)).toISOString()
+    const ts = () => {
+      if (clockMode === 'equal') return '2024-01-01T00:00:00.000Z'
+      // skewed: edits are sometimes older than their parents
+      clock += clockMode === 'skewed' && rnd() < 0.4 ? -700 : 1000
+      return new Date(clock).toISOString()
+    }
     /** @type {string[]} */
     let heads = []
     const root = { docId, versionId: newVersion(), links: [], updatedAt: ts() }
@@ -170,45 +177,51 @@ function checkInvariants(delivered, state) {
   return problems
 }
 
-test('random DAGs converge for all orders/batchings, invariants hold', (t) => {
-  const { indexer, db, cleanup, clear } = create()
-  t.after(cleanup)
-  const readState = db.prepare('SELECT * FROM docs ORDER BY docId')
+for (const clockMode of /** @type {const} */ ([
+  'monotonic',
+  'equal',
+  'skewed',
+])) {
+  test(`random DAGs converge for all orders/batchings (${clockMode} clocks)`, (t) => {
+    const { indexer, db, cleanup, clear } = create()
+    t.after(cleanup)
+    const readState = db.prepare('SELECT * FROM docs ORDER BY docId')
 
-  const CASES = 60
-  const ORDERS = 4
-  for (let c = 0; c < CASES; c++) {
-    const rnd = makeRandom(1 + c * 7919)
-    const delivered = generateDocs(rnd)
-    /** @type {string | undefined} */
-    let firstState
-    for (let o = 0; o < ORDERS; o++) {
-      const order = o === 0 ? delivered : shuffle(rnd, delivered)
-      let i = 0
-      while (i < order.length) {
-        const size = 1 + ((rnd() * 5) | 0)
-        indexer.batch(order.slice(i, i + size))
-        i += size
+    const CASES = 50
+    const ORDERS = 4
+    for (let c = 0; c < CASES; c++) {
+      const rnd = makeRandom(1 + c * 7919)
+      const delivered = generateDocs(rnd, clockMode)
+      /** @type {string | undefined} */
+      let firstState
+      for (let o = 0; o < ORDERS; o++) {
+        const order = o === 0 ? delivered : shuffle(rnd, delivered)
+        let i = 0
+        while (i < order.length) {
+          const size = 1 + ((rnd() * 5) | 0)
+          indexer.batch(order.slice(i, i + size))
+          i += size
+        }
+        const state = readState.all().map((r) => ({
+          docId: r.docId,
+          versionId: r.versionId,
+          forks: JSON.parse(/** @type {any} */ (r).forks).sort(),
+          updatedAt: r.updatedAt,
+        }))
+        const problems = checkInvariants(delivered, state)
+        assert.deepEqual(problems, [], `case ${c} order ${o}: invariants`)
+        const stateJson = JSON.stringify(state)
+        if (o === 0) {
+          firstState = stateJson
+        } else {
+          assert.equal(
+            stateJson,
+            firstState,
+            `case ${c} order ${o}: same state for all delivery orders`,
+          )
+        }
+        clear()
       }
-      const state = readState.all().map((r) => ({
-        docId: r.docId,
-        versionId: r.versionId,
-        forks: JSON.parse(/** @type {any} */ (r).forks).sort(),
-        updatedAt: r.updatedAt,
-      }))
-      const problems = checkInvariants(delivered, state)
-      assert.deepEqual(problems, [], `case ${c} order ${o}: invariants`)
-      const stateJson = JSON.stringify(state)
-      if (o === 0) {
-        firstState = stateJson
-      } else {
-        assert.equal(
-          stateJson,
-          firstState,
-          `case ${c} order ${o}: same state for all delivery orders`,
-        )
-      }
-      clear()
     }
-  }
-})
+  })
+}
