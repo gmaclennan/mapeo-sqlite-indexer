@@ -156,6 +156,14 @@ export default class SqliteIndexerHybrid {
     const pendingLinks = new Set()
     /** @type {Set<string>} - docIds whose head changed */
     const dirty = new Set()
+    /**
+     * docIds whose current head object was loaded from the DB (so only its
+     * forks may have changed). These are flushed with a forks-only UPDATE:
+     * a full REPLACE would wipe user-defined extra columns, which are not
+     * loaded by getDoc.
+     * @type {Set<string>}
+     */
+    const fromDb = new Set()
 
     /** @param {string} versionId */
     const isLinked = (versionId) =>
@@ -171,6 +179,7 @@ export default class SqliteIndexerHybrid {
           this.#dbApi.getDoc(doc.docId)
         )
         heads.set(doc.docId, existing)
+        if (existing) fromDb.add(doc.docId)
       }
 
       for (const link of doc.links) {
@@ -186,6 +195,7 @@ export default class SqliteIndexerHybrid {
 
       if (!existing) {
         heads.set(doc.docId, /** @type {any} */ ({ ...doc, forks: [] }))
+        fromDb.delete(doc.docId)
         dirty.add(doc.docId)
       } else if (
         existing.versionId === doc.versionId ||
@@ -200,6 +210,7 @@ export default class SqliteIndexerHybrid {
           doc.docId,
           /** @type {any} */ ({ ...doc, forks: existing.forks })
         )
+        fromDb.delete(doc.docId)
         dirty.add(doc.docId)
       } else {
         // Document is forked, so we need to select a "winner"
@@ -213,17 +224,26 @@ export default class SqliteIndexerHybrid {
             doc.docId,
             /** @type {any} */ ({ ...doc, forks: existing.forks })
           )
+          fromDb.delete(doc.docId)
           dirty.add(doc.docId)
         }
       }
     }
 
     if (pendingLinks.size > 0) this.#writeBacklinks([...pendingLinks])
-    if (dirty.size > 0) {
-      this.#writeDocs(
-        [...dirty].map((id) => /** @type {any} */ (heads.get(id)))
-      )
+    /** @type {any[]} */
+    const replacedHeads = []
+    for (const id of dirty) {
+      const head = /** @type {any} */ (heads.get(id))
+      if (fromDb.has(id)) {
+        // Only forks changed on a head loaded from the DB: a full REPLACE
+        // would wipe user-defined extra columns (not loaded by getDoc)
+        this.#dbApi.updateForks(id, head.forks)
+      } else {
+        replacedHeads.push(head)
+      }
     }
+    if (replacedHeads.length > 0) this.#writeDocs(replacedHeads)
   }
 
   /** @param {string} versionId */

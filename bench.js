@@ -249,7 +249,7 @@ function main() {
     else if (arg === '--docs') opts.docs = Number(args[++i])
     else if (arg === '--batch') opts.batch = Number(args[++i])
     else if (arg === '--repeat') opts.repeat = Number(args[++i])
-    else if (arg in scenarios) requested.push(arg)
+    else if (Object.hasOwn(scenarios, arg)) requested.push(arg)
     else {
       console.error(`Unknown argument: ${arg}`)
       console.error(

@@ -73,6 +73,49 @@ object TEXT NOT NULL`
   assert.deepEqual(db.prepare('SELECT * FROM docs').all(), expected)
 })
 
+test('extra columns are preserved when only forks change', async (t) => {
+  const t1 = new Date(2024, 0, 1).toISOString()
+  const t2 = new Date(2024, 0, 2).toISOString()
+
+  const { indexer, db, cleanup } = create({
+    extraColumns: 'value TEXT NOT NULL',
+  })
+  t.after(cleanup)
+
+  indexer.batch([
+    { docId: 'A', versionId: '1', links: [], updatedAt: t2, value: 'hello' },
+  ])
+  // A losing fork arrives in a later batch: the stored head must keep its
+  // extra columns while its forks are updated
+  indexer.batch([
+    { docId: 'A', versionId: '2', links: [], updatedAt: t1, value: 'other' },
+  ])
+  assert.deepEqual(db.prepare('SELECT * FROM docs').all(), [
+    {
+      docId: 'A',
+      versionId: '1',
+      links: '[]',
+      forks: '["2"]',
+      updatedAt: t2,
+      value: 'hello',
+    },
+  ])
+
+  // A doc linking both the fork and the head arrives: it becomes the new
+  // head with its own extra columns, and the fork is pruned
+  indexer.batch([
+    {
+      docId: 'A',
+      versionId: '3',
+      links: ['2', '1'],
+      updatedAt: t2,
+      value: 'edited',
+    },
+  ])
+  const head = db.prepare('SELECT versionId, forks, value FROM docs').get()
+  assert.deepEqual(head, { versionId: '3', forks: '[]', value: 'edited' })
+})
+
 test('column defaults are applied as SQLite would store them', async (t) => {
   const updatedAt = new Date(1999, 0, 1).toISOString()
 

@@ -73,3 +73,11 @@ noise floor because commit I/O dominates.
 The prototypes are kept in the repo for reference and can be re-measured
 with `INDEXER_IMPL` if circumstances change (e.g. a different storage
 backend or much larger batches of same-document versions).
+
+Equivalence caveat: `index-hybrid.js` is observably equivalent to
+`index.js`. `index-batched.js` is equivalent only when timestamps are
+causally monotonic — because it computes linked-ness for the whole batch
+up-front, it can pick a different (arguably more `getWinner`-consistent)
+head than `index.js` under clock skew or tied timestamps. See
+`test/winner-staleness.test.js` for the related order-dependence
+limitation of `index.js` itself.

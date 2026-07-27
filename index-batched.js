@@ -256,10 +256,22 @@ export default class SqliteIndexerBatched {
 
     // 5. Run the head-selection algorithm in memory. This is the same
     // algorithm as SqliteIndexer.#batch, except that linked-ness reflects
-    // *all* links in this batch rather than only those seen so far, which
-    // converges to the same result (indexing is arrival-order independent).
+    // *all* links in this batch rather than only those seen so far. NB:
+    // this is NOT always identical to index.js — when getWinner's choice
+    // disagrees with causal order (clock skew, tied updatedAt), the two
+    // can pick different heads, because index.js promotes intermediate
+    // heads sequentially. With causally-monotonic timestamps results are
+    // identical (see test/convergence-fuzz.test.js).
     /** @type {Set<string>} */
     const dirty = new Set()
+    /**
+     * docIds whose current head object was loaded from the DB (so only its
+     * forks may have changed). Flushed with a forks-only UPDATE: a full
+     * REPLACE would wipe user-defined extra columns, which #getDocs does
+     * not load.
+     * @type {Set<string>}
+     */
+    const fromDb = new Set(heads.keys())
     for (const doc of docs) {
       const existing = heads.get(doc.docId)
 
@@ -277,6 +289,7 @@ export default class SqliteIndexerBatched {
 
       if (!existing) {
         heads.set(doc.docId, /** @type {any} */ ({ ...doc, forks: [] }))
+        fromDb.delete(doc.docId)
         dirty.add(doc.docId)
       } else if (
         existing.versionId === doc.versionId ||
@@ -291,6 +304,7 @@ export default class SqliteIndexerBatched {
           doc.docId,
           /** @type {any} */ ({ ...doc, forks: existing.forks })
         )
+        fromDb.delete(doc.docId)
         dirty.add(doc.docId)
       } else {
         // Document is forked, so we need to select a "winner"
@@ -304,17 +318,24 @@ export default class SqliteIndexerBatched {
             doc.docId,
             /** @type {any} */ ({ ...doc, forks: existing.forks })
           )
+          fromDb.delete(doc.docId)
           dirty.add(doc.docId)
         }
       }
     }
 
     // 6. Flush changed heads
-    if (dirty.size > 0) {
-      this.#writeDocs(
-        [...dirty].map((id) => /** @type {any} */ (heads.get(id)))
-      )
+    /** @type {any[]} */
+    const replacedHeads = []
+    for (const id of dirty) {
+      const head = /** @type {any} */ (heads.get(id))
+      if (fromDb.has(id)) {
+        this.#dbApi.updateForks(id, head.forks)
+      } else {
+        replacedHeads.push(head)
+      }
     }
+    if (replacedHeads.length > 0) this.#writeDocs(replacedHeads)
   }
 
   /** @param {string} versionId */

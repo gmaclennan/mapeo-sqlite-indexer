@@ -239,7 +239,9 @@ export default class SqliteIndexer {
         // This version is already indexed (e.g. the same data was re-synced
         // or re-indexed), so there is nothing new to index. Nothing can need
         // pruning from existing forks here: forks are never linked, and all
-        // of this doc's links became linked when it was first indexed.
+        // of this doc's links became linked when it was first indexed. NB:
+        // this assumes a versionId always re-arrives with the same links
+        // array, which holds for content-addressed version ids.
         continue
       } else if (this.isLinked(existing.versionId)) {
         // console.log('existing linked', existing.version)
