@@ -4,7 +4,8 @@ import path from 'path'
 import { DbApi } from '../index.js'
 
 // Set INDEXER_IMPL to run the test suite against an alternative
-// implementation, e.g. INDEXER_IMPL=../index-batched.js npx borp
+// implementation (path relative to this file), e.g.
+// INDEXER_IMPL=../index-experiment.js npx borp
 const { default: SqliteIndexer } = await import(
   process.env.INDEXER_IMPL ?? '../index.js'
 )

@@ -36,16 +36,17 @@ larger batches amortise per-transaction commit I/O.
 
 ## Set-based batching: measured and rejected
 
-Two prototype rewrites of `batch()` were measured against the current
-per-document implementation (both pass the full test suite via
-`INDEXER_IMPL=../index-<name>.js npx borp`):
+Two prototype rewrites of `batch()` were built, verified against the full
+test suite, and measured against the current per-document implementation.
+Both were rejected and have since been removed from the repo (they remain
+available in the git history of the branch that produced these numbers):
 
-- **`index-batched.js`** — fully set-based: a fixed number of chunked
-  statements per batch (`IN`-list SELECTs, multi-row INSERT/REPLACE),
-  head-selection in memory.
-- **`index-hybrid.js`** — keeps per-document point reads, but coalesces
-  writes: evolving heads are tracked in memory and flushed once per batch
-  with multi-row statements.
+- **"batched"** — fully set-based: a fixed number of chunked statements
+  per batch (`IN`-list SELECTs, multi-row INSERT/REPLACE), head-selection
+  in memory.
+- **"hybrid"** — keeps per-document point reads, but coalesces writes:
+  evolving heads are tracked in memory and flushed once per batch with
+  multi-row statements.
 
 Speedups vs current implementation (docs/sec, best of 4 interleaved
 rounds, Node 24 / better-sqlite3 v13, batch size 100):
@@ -70,14 +71,13 @@ databases — the real deployment target — everything shrinks toward the
 noise floor because commit I/O dominates.
 
 **Conclusion: the per-document design in `index.js` is the right one.**
-The prototypes are kept in the repo for reference and can be re-measured
-with `INDEXER_IMPL` if circumstances change (e.g. a different storage
-backend or much larger batches of same-document versions).
+A further mark against the fully set-based approach: it was not
+semantically equivalent to `index.js` under clock skew or tied timestamps
+(computing linked-ness for the whole batch up-front can pick a different
+head — see `test/winner-staleness.test.js` for the related
+order-dependence limitation of `index.js` itself).
 
-Equivalence caveat: `index-hybrid.js` is observably equivalent to
-`index.js`. `index-batched.js` is equivalent only when timestamps are
-causally monotonic — because it computes linked-ness for the whole batch
-up-front, it can pick a different (arguably more `getWinner`-consistent)
-head than `index.js` under clock skew or tied timestamps. See
-`test/winner-staleness.test.js` for the related order-dependence
-limitation of `index.js` itself.
+For future experiments, `test/utils.js` and `bench.js` still accept an
+`INDEXER_IMPL` env var pointing at an alternative implementation, so a
+candidate rewrite can be validated against the full test suite and
+benchmarked without touching `index.js`.

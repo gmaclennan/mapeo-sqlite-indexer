@@ -162,9 +162,8 @@ application-supplied `getDoc(versionId)` callback.
    and CHANGELOG, release as a **major version**. Coordinate the
    downstream comapeo-core update (add table creation + one-time reindex).
 4. **Harden**: make the previously-`todo` tests regular tests, run the
-   convergence fuzz in all clock modes in CI, and delete the two rejected
-   performance prototypes (`index-batched.js`, `index-hybrid.js`) to keep
-   maintenance surface small.
+   convergence fuzz in all clock modes in CI, and remove the prototype
+   once folded into `index.js`.
 
 Open questions to settle before Phase 3:
 

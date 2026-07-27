@@ -33,8 +33,8 @@ import { tmpdir } from 'os'
 import path from 'path'
 import { performance } from 'perf_hooks'
 
-// Set INDEXER_IMPL to benchmark an alternative implementation, e.g.
-// INDEXER_IMPL=./index-batched.js node bench.js
+// Set INDEXER_IMPL to benchmark an alternative implementation (path
+// relative to this file), e.g. INDEXER_IMPL=./index-experiment.js node bench.js
 const { default: SqliteIndexer } = await import(
   process.env.INDEXER_IMPL ?? './index.js'
 )
