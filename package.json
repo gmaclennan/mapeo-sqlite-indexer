@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "test": "run-p lint type borp",
+    "bench": "node bench.js",
     "lint": "eslint .",
     "borp": "c8 --100 borp",
     "posttest": "c8 report --reporter=text-lcov > ./coverage/lcov.info",
@@ -28,7 +29,7 @@
     "@types/better-sqlite3": "^7.6.10",
     "@types/node": "^18.16.19",
     "@types/tmp": "^0.2.3",
-    "better-sqlite3": "^11.0.0",
+    "better-sqlite3": "^13.0.1",
     "borp": "^0.10.0",
     "c8": "^8.0.0",
     "eslint": "^8.44.0",
