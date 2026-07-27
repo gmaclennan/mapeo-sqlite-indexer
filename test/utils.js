@@ -8,6 +8,7 @@ import { DbApi } from '../index.js'
 const { default: SqliteIndexer } = await import(
   process.env.INDEXER_IMPL ?? '../index.js'
 )
+export { SqliteIndexer }
 
 export function create({ extraColumns = '' } = {}) {
   const { name: tmpDir, removeCallback } = tmp.dirSync({ unsafeCleanup: true })
@@ -48,8 +49,9 @@ export function create({ extraColumns = '' } = {}) {
     removeCallback()
   }
   function clear() {
-    db.prepare(`DELETE FROM docs`).run()
-    db.prepare(`DELETE FROM backlinks`).run()
+    // Reset through the public API so implementations that keep any state
+    // outside the tables would also be reset
+    indexer.deleteAll()
   }
   return { indexer, api, cleanup, clear, db }
 }

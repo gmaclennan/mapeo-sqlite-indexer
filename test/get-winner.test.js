@@ -1,8 +1,8 @@
 // @ts-check
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { create } from './utils.js'
-import SqliteIndexer, { defaultGetWinner } from '../index.js'
+import { create, SqliteIndexer } from './utils.js'
+import { defaultGetWinner } from '../index.js'
 
 test('defaultGetWinner picks the doc with the later updatedAt', () => {
   const older = { docId: 'A', versionId: '2', links: [], updatedAt: '2024-01' }

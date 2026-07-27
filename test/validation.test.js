@@ -51,6 +51,15 @@ test('throws if the backlinks table has extra columns', () => {
   assert.throws(() => createIndexer(db), /should have 1 column/)
 })
 
+test('throws if the backlinks column has the wrong name', () => {
+  const db = createDb(
+    VALID_DOCS_TABLE,
+    `CREATE TABLE backlinks
+      (version TEXT PRIMARY KEY NOT NULL) WITHOUT ROWID`
+  )
+  assert.throws(() => createIndexer(db), /must have a column 'versionId'/)
+})
+
 test('throws if a required column is missing from the docs table', () => {
   const db = createDb(
     `CREATE TABLE docs (

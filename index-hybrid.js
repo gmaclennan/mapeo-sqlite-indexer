@@ -29,6 +29,16 @@ import { DbApi, defaultGetWinner } from './index.js'
 // Maximum rows per multi-row write statement
 const MAX_ROWS = 256
 
+// PRAGMA table_info returns defaults as raw SQL text; parse to the value
+// SQLite would store (same logic as index.js)
+function parseSqlDefault(dfltValue) {
+  if (dfltValue == null || /^NULL$/i.test(dfltValue)) return null
+  const str = /^'(.*)'$/s.exec(dfltValue)
+  if (str) return str[1].replace(/''/g, "'")
+  const num = Number(dfltValue)
+  return Number.isNaN(num) ? dfltValue : num
+}
+
 /**
  * @template {IndexableDocument} [TDoc=IndexableDocument]
  */
@@ -63,8 +73,13 @@ export default class SqliteIndexerHybrid {
     this.#backlinkTableName = backlinkTableName
     this.#getWinner = getWinner
     this.#tableInfo =
-      /** @type {{ name: string, dflt_value: any }[]} */
-      (db.prepare(`PRAGMA table_info(${docTableName})`).all())
+      /** @type {{ name: string, dflt: any }[]} */
+      (
+        db
+          .prepare(`PRAGMA table_info(${docTableName})`)
+          .all()
+          .map((col) => ({ ...col, dflt: parseSqlDefault(col.dflt_value) }))
+      )
     this.#docColumns = this.#tableInfo.map(({ name }) => name)
 
     /** @type {(docs: TDoc[]) => void} */
@@ -111,10 +126,10 @@ export default class SqliteIndexerHybrid {
       let v = 0
       for (const head of rows) {
         for (let c = 0; c < ncols; c++) {
-          const { name, dflt_value } = tableInfo[c]
+          const { name, dflt } = tableInfo[c]
           const value = /** @type {Record<string, any>} */ (head)[name]
           if (value === null || typeof value === 'undefined') {
-            values[v++] = dflt_value
+            values[v++] = dflt
           } else if (typeof value === 'boolean') {
             values[v++] = value ? 1 : 0
           } else if (typeof value === 'object') {

@@ -46,8 +46,7 @@ export class DbApi {
   #writeBacklinkSql
   #updateForksSql
   #deleteAll
-  #docDefaults
-  #tableInfo
+  #writeColumns
 
   /**
    * @param {import('better-sqlite3').Database} db
@@ -57,16 +56,13 @@ export class DbApi {
    */
   constructor(db, { docTableName, backlinkTableName }) {
     assertValidSchema(db, { docTableName, backlinkTableName })
-    const tableInfo = (this.#tableInfo = /** @type {ColumnInfo[]} */ (
+    const tableInfo = /** @type {ColumnInfo[]} */ (
       db.prepare(`PRAGMA table_info(${docTableName})`).all()
-    ))
-    this.#docDefaults = tableInfo.reduce(
-      (acc, { name, dflt_value, notnull }) => {
-        if (!notnull) acc[name] = dflt_value
-        return acc
-      },
-      /** @type {Record<string, any>} */ ({})
     )
+    this.#writeColumns = tableInfo.map(({ name, dflt_value }) => ({
+      name,
+      dflt: parseSqlDefault(dflt_value),
+    }))
     const docColumns = tableInfo.map(({ name }) => name)
     // .raw() rows (arrays) and positional (?) bindings are noticeably faster
     // than object rows and named (@) bindings in better-sqlite3
@@ -129,16 +125,16 @@ export class DbApi {
    * `doc.forks` if provided (avoids the caller needing to clone `doc`)
    */
   writeDoc(doc, forks) {
-    const tableInfo = this.#tableInfo
-    const values = new Array(tableInfo.length)
-    for (let i = 0; i < tableInfo.length; i++) {
-      const { name, dflt_value } = tableInfo[i]
+    const writeColumns = this.#writeColumns
+    const values = new Array(writeColumns.length)
+    for (let i = 0; i < writeColumns.length; i++) {
+      const { name, dflt } = writeColumns[i]
       const value =
         name === 'forks' && forks !== undefined
           ? forks
           : /** @type {Record<string, any>} */ (doc)[name]
       if (value === null || typeof value === 'undefined') {
-        values[i] = dflt_value
+        values[i] = dflt
       } else if (typeof value === 'boolean') {
         values[i] = value ? 1 : 0
       } else if (typeof value === 'object') {
@@ -295,6 +291,23 @@ export function defaultGetWinner(docA, docB) {
   if (docB.updatedAt > docA.updatedAt) return docB
   // They are equal or no timestamp property, so sort by version to ensure winner is deterministic
   return docA.versionId > docB.versionId ? docA : docB
+}
+
+/**
+ * `PRAGMA table_info` returns a column's default as raw SQL text (e.g. the
+ * five characters `'foo'` for `DEFAULT 'foo'`), so parse it into the value
+ * that SQLite itself would store. Expression defaults (e.g.
+ * CURRENT_TIMESTAMP) are not evaluated and are stored as their SQL text.
+ *
+ * @param {any} dfltValue
+ * @returns {string | number | null}
+ */
+function parseSqlDefault(dfltValue) {
+  if (dfltValue == null || /^NULL$/i.test(dfltValue)) return null
+  const str = /^'(.*)'$/s.exec(dfltValue)
+  if (str) return str[1].replace(/''/g, "'")
+  const num = Number(dfltValue)
+  return Number.isNaN(num) ? dfltValue : num
 }
 
 /**

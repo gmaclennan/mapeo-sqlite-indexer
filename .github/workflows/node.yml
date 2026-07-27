@@ -26,6 +26,10 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm test
+      - name: Test prototype implementations
+        run: |
+          INDEXER_IMPL=../index-batched.js npx borp
+          INDEXER_IMPL=../index-hybrid.js npx borp
       - name: Coveralls
         uses: coverallsapp/github-action@master
         with:
