@@ -70,31 +70,31 @@ export class DbApi {
       .prepare(
         `SELECT docId, versionId, links, forks, updatedAt
       FROM ${docTableName}
-      WHERE docId = ?`
+      WHERE docId = ?`,
       )
       .raw(true)
     this.#writeDocSql = db.prepare(
       `REPLACE INTO ${docTableName} (${docColumns.join(',')})
-      VALUES (${docColumns.map(() => '?').join(',')})`
+      VALUES (${docColumns.map(() => '?').join(',')})`,
     )
     this.#updateForksSql = db.prepare(
-      `UPDATE ${docTableName} SET forks = ? WHERE docId = ?`
+      `UPDATE ${docTableName} SET forks = ? WHERE docId = ?`,
     )
     this.#getBacklinkSql = db.prepare(
       `SELECT versionId
       FROM ${backlinkTableName}
-      WHERE versionId = ?`
+      WHERE versionId = ?`,
     )
     this.#hasBacklinkSql = db
       .prepare(
         `SELECT EXISTS (
         SELECT 1 FROM ${backlinkTableName} WHERE versionId = ?
-      )`
+      )`,
       )
       .pluck(true)
     this.#writeBacklinkSql = db.prepare(
       `INSERT OR IGNORE INTO ${backlinkTableName} (versionId)
-      VALUES (?)`
+      VALUES (?)`,
     )
 
     const deleteDocsSql = db.prepare(`DELETE FROM ${docTableName}`)
@@ -195,7 +195,7 @@ export default class SqliteIndexer {
    */
   constructor(
     db,
-    { docTableName, backlinkTableName, getWinner = defaultGetWinner }
+    { docTableName, backlinkTableName, getWinner = defaultGetWinner },
   ) {
     this.#dbApi = /** @type {DbApi<TDoc>} */ (
       new DbApi(db, { docTableName, backlinkTableName })
@@ -332,7 +332,7 @@ function assertValidSchema(db, { docTableName, backlinkTableName }) {
   assert(backlinksTable, `Table ${backlinkTableName} does not exist`)
   assert(
     backlinksTable.ncol === 1,
-    `Backlinks table should have 1 column, but instead had ${backlinksTable.ncol}`
+    `Backlinks table should have 1 column, but instead had ${backlinksTable.ncol}`,
   )
   const backlinksColumns = /** @type {ColumnInfo[]} */ (
     db.prepare(`PRAGMA table_info(${backlinkTableName})`).all()
@@ -354,7 +354,7 @@ function assertMatchingSchema(tableName, columns, schema) {
         // @ts-ignore
         column[prop] === value,
         // @ts-ignore
-        `Column '${name}' in table '${tableName}' should have ${prop}=${value}, but instead ${prop}=${column[prop]}`
+        `Column '${name}' in table '${tableName}' should have ${prop}=${value}, but instead ${prop}=${column[prop]}`,
       )
     }
   }

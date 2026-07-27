@@ -18,7 +18,7 @@ test('editing the winning head keeps unresolved forks', (t) => {
   assert.deepEqual(
     api.getDoc('A')?.forks,
     ['2'],
-    'Test setup: head is 3 with fork 2'
+    'Test setup: head is 3 with fork 2',
   )
 
   // A normal edit of the winning head: 2 is still an unresolved fork
@@ -50,7 +50,7 @@ test('a merge document resolves carried-forward forks', (t) => {
   assert.deepEqual(
     api.getDoc('A')?.forks,
     ['2'],
-    'Test setup: head is 4 with fork 2'
+    'Test setup: head is 4 with fork 2',
   )
 
   // A merge document linking both the head and the fork resolves the fork
@@ -80,7 +80,7 @@ test('editing the losing fork keeps head, tracks new fork version', (t) => {
   assert.deepEqual(
     api.getDoc('A')?.forks,
     ['2'],
-    'Test setup: head is 3 with fork 2'
+    'Test setup: head is 3 with fork 2',
   )
 
   // An edit of the fork 2, with an older timestamp than the head, so the
@@ -108,7 +108,7 @@ test('fork is pruned when a doc linking it arrives in a later batch', (t) => {
   assert.deepEqual(
     api.getDoc('A')?.forks,
     ['2'],
-    'Test setup: head is 3 with fork 2'
+    'Test setup: head is 3 with fork 2',
   )
 
   // 4 links the fork 2 but is itself already linked by 5, which links the
@@ -141,7 +141,7 @@ test('a merge of only some forks keeps the remaining forks', (t) => {
   assert.deepEqual(
     api.getDoc('A')?.forks.sort(),
     ['2', '3'],
-    'Test setup: head is 4 with forks 2 and 3'
+    'Test setup: head is 4 with forks 2 and 3',
   )
 
   // 5 merges the head 4 and fork 2, but 3 is still an unresolved fork

@@ -46,7 +46,7 @@ test('throws if the backlinks table has extra columns', () => {
     `CREATE TABLE backlinks (
       versionId TEXT PRIMARY KEY NOT NULL,
       extra TEXT
-    ) WITHOUT ROWID`
+    ) WITHOUT ROWID`,
   )
   assert.throws(() => createIndexer(db), /should have 1 column/)
 })
@@ -55,7 +55,7 @@ test('throws if the backlinks column has the wrong name', () => {
   const db = createDb(
     VALID_DOCS_TABLE,
     `CREATE TABLE backlinks
-      (version TEXT PRIMARY KEY NOT NULL) WITHOUT ROWID`
+      (version TEXT PRIMARY KEY NOT NULL) WITHOUT ROWID`,
   )
   assert.throws(() => createIndexer(db), /must have a column 'versionId'/)
 })
@@ -68,7 +68,7 @@ test('throws if a required column is missing from the docs table', () => {
       links TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     ) WITHOUT ROWID`,
-    VALID_BACKLINKS_TABLE
+    VALID_BACKLINKS_TABLE,
   )
   assert.throws(() => createIndexer(db), /must have a column 'forks'/)
 })
@@ -82,7 +82,7 @@ test('throws if a docs column has the wrong type', () => {
       forks TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     )`,
-    VALID_BACKLINKS_TABLE
+    VALID_BACKLINKS_TABLE,
   )
   assert.throws(() => createIndexer(db), /should have type=TEXT/)
 })
@@ -96,7 +96,7 @@ test('throws if a docs column is nullable', () => {
       forks TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     ) WITHOUT ROWID`,
-    VALID_BACKLINKS_TABLE
+    VALID_BACKLINKS_TABLE,
   )
   assert.throws(() => createIndexer(db), /should have notnull=1/)
 })
@@ -110,7 +110,7 @@ test('throws if the wrong column is the primary key', () => {
       forks TEXT NOT NULL,
       updatedAt TEXT NOT NULL
     ) WITHOUT ROWID`,
-    VALID_BACKLINKS_TABLE
+    VALID_BACKLINKS_TABLE,
   )
   assert.throws(() => createIndexer(db))
 })
@@ -125,7 +125,7 @@ test('a valid schema with extra columns is accepted', () => {
       updatedAt TEXT NOT NULL,
       extra TEXT
     ) WITHOUT ROWID`,
-    VALID_BACKLINKS_TABLE
+    VALID_BACKLINKS_TABLE,
   )
   assert.doesNotThrow(() => createIndexer(db))
 })

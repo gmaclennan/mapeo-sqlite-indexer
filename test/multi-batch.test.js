@@ -39,8 +39,8 @@ test('Expected head for all permutations split across two batches', (t) => {
         { ...head, forks: head?.forks.sort() },
         expected,
         `order ${JSON.stringify(
-          permutation.map((doc) => doc.versionId)
-        )} split at ${split}`
+          permutation.map((doc) => doc.versionId),
+        )} split at ${split}`,
       )
       clear()
     }
@@ -59,7 +59,7 @@ test('Expected head for all permutations indexed one doc at a time', (t) => {
     assert.deepEqual(
       { ...head, forks: head?.forks.sort() },
       expected,
-      JSON.stringify(permutation.map((doc) => doc.versionId))
+      JSON.stringify(permutation.map((doc) => doc.versionId)),
     )
     clear()
   }

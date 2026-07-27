@@ -85,13 +85,13 @@ db.prepare(
     forks TEXT NOT NULL,
     updatedAt TEXT NOT NULL
   )
-  WITHOUT ROWID`
+  WITHOUT ROWID`,
 ).run()
 
 db.prepare(
   `CREATE TABLE IF NOT EXISTS backlinks
   (versionId TEXT PRIMARY KEY NOT NULL)
-  WITHOUT ROWID`
+  WITHOUT ROWID`,
 ).run()
 
 const docs = [

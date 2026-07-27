@@ -163,7 +163,7 @@ function checkInvariants(delivered, state) {
     if (JSON.stringify(headSet) !== JSON.stringify(unlinked)) {
       problems.push(
         `${row.docId}: {head}∪forks ${JSON.stringify(headSet)} != ` +
-          `unlinked versions ${JSON.stringify(unlinked)}`
+          `unlinked versions ${JSON.stringify(unlinked)}`,
       )
     }
   }
@@ -205,7 +205,7 @@ test('random DAGs converge for all orders/batchings, invariants hold', (t) => {
         assert.equal(
           stateJson,
           firstState,
-          `case ${c} order ${o}: same state for all delivery orders`
+          `case ${c} order ${o}: same state for all delivery orders`,
         )
       }
       clear()

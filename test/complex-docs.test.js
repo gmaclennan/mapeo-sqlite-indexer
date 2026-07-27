@@ -158,6 +158,6 @@ expr TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP`
         expr: 'CURRENT_TIMESTAMP',
       },
       { text: 'provided', num: 2, nullable: 'provided', expr: 'provided' },
-    ]
+    ],
   )
 })

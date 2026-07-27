@@ -73,12 +73,12 @@ function createDb() {
       links TEXT NOT NULL,
       forks TEXT NOT NULL,
       updatedAt TEXT NOT NULL
-    ) WITHOUT ROWID`
+    ) WITHOUT ROWID`,
   ).run()
   db.prepare(
     `CREATE TABLE IF NOT EXISTS backlinks
     (versionId TEXT PRIMARY KEY NOT NULL)
-    WITHOUT ROWID`
+    WITHOUT ROWID`,
   ).run()
   const indexer = new SqliteIndexer(db, {
     docTableName: 'docs',
@@ -153,7 +153,7 @@ function generateForks(random, clock, heads, docIds, count) {
     docs.push(
       { docId, versionId: forkA, links: [parent], updatedAt: clock() },
       { docId, versionId: forkB, links: [parent], updatedAt: clock() },
-      { docId, versionId: merge, links: [forkA, forkB], updatedAt: clock() }
+      { docId, versionId: merge, links: [forkA, forkB], updatedAt: clock() },
     )
     heads.set(docId, merge)
   }
@@ -213,7 +213,7 @@ const scenarios = {
     const docIds = initial.map((d) => d.docId)
     const docs = initial.concat(
       generateEdits(random, clock, heads, docIds, editCount),
-      generateForks(random, clock, heads, docIds, forkCount)
+      generateForks(random, clock, heads, docIds, forkCount),
     )
     return { setup: [], docs: shuffle(random, docs) }
   },
@@ -254,7 +254,7 @@ function main() {
       console.error(`Unknown argument: ${arg}`)
       console.error(
         `Usage: node bench.js [${Object.keys(scenarios).join('|')} ...] ` +
-          '[--docs N] [--batch N] [--repeat N] [--json]'
+          '[--docs N] [--batch N] [--repeat N] [--json]',
       )
       process.exit(1)
     }
@@ -276,7 +276,7 @@ function main() {
           docCount: opts.docs,
           batchSize: opts.batch,
           seed: 42,
-        })
+        }),
       )
     }
     const best = runs.reduce((a, b) => (a.elapsedMs < b.elapsedMs ? a : b))
@@ -295,7 +295,7 @@ function main() {
         `${name.padEnd(8)} ${String(r.docs).padStart(7)} docs  ` +
           `best ${String(r.bestMs).padStart(6)}ms  ` +
           `mean ${String(r.meanMs).padStart(6)}ms  ` +
-          `${String(r.docsPerSec).padStart(7)} docs/sec`
+          `${String(r.docsPerSec).padStart(7)} docs/sec`,
       )
     }
   }
