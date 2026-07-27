@@ -32,7 +32,12 @@ import { mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import path from 'path'
 import { performance } from 'perf_hooks'
-import SqliteIndexer from './index.js'
+
+// Set INDEXER_IMPL to benchmark an alternative implementation, e.g.
+// INDEXER_IMPL=./index-batched.js node bench.js
+const { default: SqliteIndexer } = await import(
+  process.env.INDEXER_IMPL ?? './index.js'
+)
 
 /** Deterministic pseudo-random number generator (mulberry32) */
 function makeRandom(seed) {

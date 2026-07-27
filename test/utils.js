@@ -1,7 +1,13 @@
 import Database from 'better-sqlite3'
 import tmp from 'tmp'
 import path from 'path'
-import SqliteIndexer, { DbApi } from '../index.js'
+import { DbApi } from '../index.js'
+
+// Set INDEXER_IMPL to run the test suite against an alternative
+// implementation, e.g. INDEXER_IMPL=../index-batched.js npx borp
+const { default: SqliteIndexer } = await import(
+  process.env.INDEXER_IMPL ?? '../index.js'
+)
 
 export function create({ extraColumns = '' } = {}) {
   const { name: tmpDir, removeCallback } = tmp.dirSync({ unsafeCleanup: true })
