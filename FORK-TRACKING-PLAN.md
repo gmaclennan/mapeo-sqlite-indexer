@@ -1,7 +1,7 @@
 # Plan: fixing the fork-tracking design limitations
 
 This is a plan to fix the two known correctness limitations of the indexer,
-documented as `todo` tests in `test/winner-staleness.test.js` and found by
+pinned by the LIMITATION tests in `test/winner-staleness.test.js` and found by
 property-based testing (`test/convergence-fuzz.test.js` covers the regime
 that works; randomised testing of the regimes below found the failures).
 
@@ -150,7 +150,8 @@ application-supplied `getDoc(versionId)` callback.
    (candidates table created internally by the prototype). Acceptance
    criteria:
    - The full 43-test suite passes.
-   - The two `todo` tests in `test/winner-staleness.test.js` pass.
+   - The two LIMITATION tests in `test/winner-staleness.test.js` are
+     flipped to assert the correct behaviour (noted inline there) and pass.
    - The convergence fuzz test passes with skewed and tied clocks
      (extend `test/convergence-fuzz.test.js` to all three clock modes for
      this implementation — currently only the monotonic mode is asserted).
@@ -161,9 +162,8 @@ application-supplied `getDoc(versionId)` callback.
    `assertValidSchema`, document setup + reindex-on-upgrade in the README
    and CHANGELOG, release as a **major version**. Coordinate the
    downstream comapeo-core update (add table creation + one-time reindex).
-4. **Harden**: make the previously-`todo` tests regular tests, run the
-   convergence fuzz in all clock modes in CI, and remove the prototype
-   once folded into `index.js`.
+4. **Harden**: run the convergence fuzz in all clock modes in CI, and
+   remove the prototype once folded into `index.js`.
 
 Open questions to settle before Phase 3:
 
