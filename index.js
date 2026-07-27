@@ -256,8 +256,12 @@ export default class SqliteIndexer {
         // Document is forked, so we need to select a "winner"
         const winner = this.#getWinner(existing, doc)
         // console.log('winner', winner)
-        // TODO: Can the forks Set get out of date over time? E.g. could some of
-        // the forks end up being linked by a doc that is indexed later on?
+        // NB: forks store only versionIds, so getWinner can never be re-run
+        // against a fork after this point. If getWinner's choice disagrees
+        // with causal order (clock skew, or equal updatedAt across a fork),
+        // the losing branch can end up as the permanent head and different
+        // arrival orders can produce different heads. See the known
+        // limitations documented in test/winner-staleness.test.js.
         if (winner === existing) {
           existing.forks.push(doc.versionId)
           this.#dbApi.updateForks(existing.docId, existing.forks)
