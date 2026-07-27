@@ -42,6 +42,7 @@ export class DbApi {
   #getDocSql
   #writeDocSql
   #getBacklinkSql
+  #hasBacklinkSql
   #writeBacklinkSql
   #updateForksSql
   #deleteAll
@@ -67,23 +68,34 @@ export class DbApi {
       /** @type {Record<string, any>} */ ({})
     )
     const docColumns = tableInfo.map(({ name }) => name)
-    this.#getDocSql = db.prepare(
-      `SELECT docId, versionId, links, forks, updatedAt
+    // .raw() rows (arrays) and positional (?) bindings are noticeably faster
+    // than object rows and named (@) bindings in better-sqlite3
+    this.#getDocSql = db
+      .prepare(
+        `SELECT docId, versionId, links, forks, updatedAt
       FROM ${docTableName}
       WHERE docId = ?`
-    )
+      )
+      .raw(true)
     this.#writeDocSql = db.prepare(
       `REPLACE INTO ${docTableName} (${docColumns.join(',')})
-      VALUES (${docColumns.map((name) => `@${name}`).join(',')})`
+      VALUES (${docColumns.map(() => '?').join(',')})`
     )
     this.#updateForksSql = db.prepare(
-      `UPDATE ${docTableName} SET forks = @forks WHERE docId = @docId`
+      `UPDATE ${docTableName} SET forks = ? WHERE docId = ?`
     )
     this.#getBacklinkSql = db.prepare(
       `SELECT versionId
       FROM ${backlinkTableName}
       WHERE versionId = ?`
     )
+    this.#hasBacklinkSql = db
+      .prepare(
+        `SELECT EXISTS (
+        SELECT 1 FROM ${backlinkTableName} WHERE versionId = ?
+      )`
+      )
+      .pluck(true)
     this.#writeBacklinkSql = db.prepare(
       `INSERT OR IGNORE INTO ${backlinkTableName} (versionId)
       VALUES (?)`
@@ -101,47 +113,61 @@ export class DbApi {
    * @returns {IndexedDocument | undefined}
    */
   getDoc(docId) {
-    const doc = /** @type {any} */ (this.#getDocSql.get(docId))
-    if (!doc) return
-    doc.links = JSON.parse(doc.links)
-    doc.forks = JSON.parse(doc.forks)
-    return doc
+    const row = /** @type {any} */ (this.#getDocSql.get(docId))
+    if (!row) return
+    return {
+      docId: row[0],
+      versionId: row[1],
+      links: JSON.parse(row[2]),
+      forks: JSON.parse(row[3]),
+      updatedAt: row[4],
+    }
   }
   /**
-   * @param {IndexedDocument<TDoc>} doc
+   * @param {TDoc | IndexedDocument<TDoc>} doc
+   * @param {IndexedDocument<IndexableDocument>["forks"]} [forks] - Overrides
+   * `doc.forks` if provided (avoids the caller needing to clone `doc`)
    */
-  writeDoc(doc) {
-    /** @type {Record<string, string | number | null>} */
-    const flattenedDoc = {}
-    for (const { name, dflt_value } of this.#tableInfo) {
-      const value = /** @type {Record<string, any>} */ (doc)[name]
+  writeDoc(doc, forks) {
+    const tableInfo = this.#tableInfo
+    const values = new Array(tableInfo.length)
+    for (let i = 0; i < tableInfo.length; i++) {
+      const { name, dflt_value } = tableInfo[i]
+      const value =
+        name === 'forks' && forks !== undefined
+          ? forks
+          : /** @type {Record<string, any>} */ (doc)[name]
       if (value === null || typeof value === 'undefined') {
-        flattenedDoc[name] = dflt_value
+        values[i] = dflt_value
       } else if (typeof value === 'boolean') {
-        flattenedDoc[name] = value ? 1 : 0
+        values[i] = value ? 1 : 0
       } else if (typeof value === 'object') {
-        flattenedDoc[name] = JSON.stringify(value)
+        values[i] = JSON.stringify(value)
       } else {
-        flattenedDoc[name] = value
+        values[i] = value
       }
     }
-    this.#writeDocSql.run(flattenedDoc)
+    this.#writeDocSql.run(values)
   }
   /**
    * @param {string} docId
    * @param {IndexedDocument<IndexableDocument>["forks"]} forks
    */
   updateForks(docId, forks) {
-    this.#updateForksSql.run({
-      docId: docId,
-      forks: JSON.stringify(forks),
-    })
+    this.#updateForksSql.run(JSON.stringify(forks), docId)
   }
   /**
    * @param {string} versionId
    */
   getBacklink(versionId) {
     return this.#getBacklinkSql.get(versionId)
+  }
+  /**
+   * @param {string} versionId
+   * @returns {boolean}
+   */
+  hasBacklink(versionId) {
+    return !!this.#hasBacklinkSql.get(versionId)
   }
   /**
    * @param {string} versionId
@@ -209,11 +235,11 @@ export default class SqliteIndexer {
       }
 
       if (!existing) {
-        this.#dbApi.writeDoc({ ...doc, forks: [] })
+        this.#dbApi.writeDoc(doc, [])
       } else if (this.isLinked(existing.versionId)) {
         // console.log('existing linked', existing.version)
         // The existing doc for this ID is now linked, so we can replace it
-        this.#dbApi.writeDoc({ ...doc, forks: [] })
+        this.#dbApi.writeDoc(doc, [])
       } else {
         // console.log('is forked', doc, existing)
         // Document is forked, so we need to select a "winner"
@@ -226,7 +252,7 @@ export default class SqliteIndexer {
           this.#dbApi.updateForks(existing.docId, existing.forks)
         } else {
           existing.forks.push(existing.versionId)
-          this.#dbApi.writeDoc({ ...doc, forks: existing.forks })
+          this.#dbApi.writeDoc(doc, existing.forks)
         }
       }
     }
@@ -234,7 +260,7 @@ export default class SqliteIndexer {
 
   /** @param {string} versionId */
   isLinked(versionId) {
-    return !!this.#dbApi.getBacklink(versionId)
+    return this.#dbApi.hasBacklink(versionId)
   }
 
   deleteAll() {
