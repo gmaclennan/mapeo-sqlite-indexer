@@ -80,9 +80,20 @@ function createDb() {
     (versionId TEXT PRIMARY KEY NOT NULL)
     WITHOUT ROWID`,
   ).run()
+  db.prepare(
+    `CREATE TABLE IF NOT EXISTS candidates
+    (
+      docId TEXT NOT NULL,
+      versionId TEXT NOT NULL,
+      doc TEXT NOT NULL,
+      PRIMARY KEY (docId, versionId)
+    )
+    WITHOUT ROWID`,
+  ).run()
   const indexer = new SqliteIndexer(db, {
     docTableName: 'docs',
     backlinkTableName: 'backlinks',
+    candidateTableName: 'candidates',
   })
   return {
     db,

@@ -37,13 +37,26 @@ export function create({ extraColumns = '' } = {}) {
     WITHOUT ROWID`,
   ).run()
 
+  db.prepare(
+    `CREATE TABLE IF NOT EXISTS candidates
+    (
+      docId TEXT NOT NULL,
+      versionId TEXT NOT NULL,
+      doc TEXT NOT NULL,
+      PRIMARY KEY (docId, versionId)
+    )
+    WITHOUT ROWID`,
+  ).run()
+
   const indexer = new SqliteIndexer(db, {
     docTableName: 'docs',
     backlinkTableName: 'backlinks',
+    candidateTableName: 'candidates',
   })
   const api = new DbApi(db, {
     docTableName: 'docs',
     backlinkTableName: 'backlinks',
+    candidateTableName: 'candidates',
   })
   function cleanup() {
     db.close()
