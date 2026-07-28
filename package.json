@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "test": "run-p lint type borp",
+    "bench": "node bench.js",
     "lint": "eslint .",
     "borp": "c8 --100 borp",
     "posttest": "c8 report --reporter=text-lcov > ./coverage/lcov.info",
