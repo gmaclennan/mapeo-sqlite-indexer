@@ -20,13 +20,13 @@ export function create({ extraColumns = '' } = {}) {
       updatedAt TEXT NOT NULL
       ${extraColumns ? ', ' + extraColumns : ''}
     )
-    WITHOUT ROWID`
+    WITHOUT ROWID`,
   ).run()
 
   db.prepare(
     `CREATE TABLE IF NOT EXISTS backlinks
     (versionId TEXT PRIMARY KEY NOT NULL)
-    WITHOUT ROWID`
+    WITHOUT ROWID`,
   ).run()
 
   const indexer = new SqliteIndexer(db, {

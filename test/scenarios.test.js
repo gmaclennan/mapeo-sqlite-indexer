@@ -101,7 +101,7 @@ test('Expected head for all permutations of order', async (t) => {
       assert.deepEqual(
         { ...head, forks: head?.forks.sort() },
         expected,
-        JSON.stringify(permutation.map((doc) => doc.versionId))
+        JSON.stringify(permutation.map((doc) => doc.versionId)),
       )
       clear()
     }

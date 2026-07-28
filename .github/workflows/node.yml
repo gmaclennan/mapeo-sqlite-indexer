@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 jobs:
   build:
@@ -12,7 +11,10 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [18.17.1, 20.x]
+        # better-sqlite3 >=13 (devDependency, used in tests) requires Node >=22.
+        # The library itself still supports Node >=18.17.1 when used with
+        # older better-sqlite3 versions (peer dependency allows any version).
+        node-version: [22.x, 24.x]
 
     steps:
       - uses: actions/checkout@v4
