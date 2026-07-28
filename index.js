@@ -45,7 +45,6 @@ export class DbApi {
   #writeBacklinkSql
   #updateForksSql
   #deleteAll
-  #docDefaults
   #tableInfo
 
   /**
@@ -59,34 +58,27 @@ export class DbApi {
     const tableInfo = (this.#tableInfo = /** @type {ColumnInfo[]} */ (
       db.prepare(`PRAGMA table_info(${docTableName})`).all()
     ))
-    this.#docDefaults = tableInfo.reduce(
-      (acc, { name, dflt_value, notnull }) => {
-        if (!notnull) acc[name] = dflt_value
-        return acc
-      },
-      /** @type {Record<string, any>} */ ({})
-    )
     const docColumns = tableInfo.map(({ name }) => name)
     this.#getDocSql = db.prepare(
       `SELECT docId, versionId, links, forks, updatedAt
       FROM ${docTableName}
-      WHERE docId = ?`
+      WHERE docId = ?`,
     )
     this.#writeDocSql = db.prepare(
       `REPLACE INTO ${docTableName} (${docColumns.join(',')})
-      VALUES (${docColumns.map((name) => `@${name}`).join(',')})`
+      VALUES (${docColumns.map((name) => `@${name}`).join(',')})`,
     )
     this.#updateForksSql = db.prepare(
-      `UPDATE ${docTableName} SET forks = @forks WHERE docId = @docId`
+      `UPDATE ${docTableName} SET forks = @forks WHERE docId = @docId`,
     )
     this.#getBacklinkSql = db.prepare(
       `SELECT versionId
       FROM ${backlinkTableName}
-      WHERE versionId = ?`
+      WHERE versionId = ?`,
     )
     this.#writeBacklinkSql = db.prepare(
       `INSERT OR IGNORE INTO ${backlinkTableName} (versionId)
-      VALUES (?)`
+      VALUES (?)`,
     )
 
     const deleteDocsSql = db.prepare(`DELETE FROM ${docTableName}`)
@@ -173,7 +165,7 @@ export default class SqliteIndexer {
    */
   constructor(
     db,
-    { docTableName, backlinkTableName, getWinner = defaultGetWinner }
+    { docTableName, backlinkTableName, getWinner = defaultGetWinner },
   ) {
     this.#dbApi = /** @type {DbApi<TDoc>} */ (
       new DbApi(db, { docTableName, backlinkTableName })
@@ -276,7 +268,7 @@ function assertValidSchema(db, { docTableName, backlinkTableName }) {
   assert(backlinksTable, `Table ${backlinkTableName} does not exist`)
   assert(
     backlinksTable.ncol === 1,
-    `Backlinks table should have 1 column, but instead had ${backlinksTable.ncol}`
+    `Backlinks table should have 1 column, but instead had ${backlinksTable.ncol}`,
   )
   const backlinksColumns = /** @type {ColumnInfo[]} */ (
     db.prepare(`PRAGMA table_info(${backlinkTableName})`).all()
@@ -298,7 +290,7 @@ function assertMatchingSchema(tableName, columns, schema) {
         // @ts-ignore
         column[prop] === value,
         // @ts-ignore
-        `Column '${name}' in table '${tableName}' should have ${prop}=${value}, but instead ${prop}=${column[prop]}`
+        `Column '${name}' in table '${tableName}' should have ${prop}=${value}, but instead ${prop}=${column[prop]}`,
       )
     }
   }
