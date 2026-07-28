@@ -27,8 +27,14 @@ larger batches amortise per-transaction commit I/O.
 
 - `.raw()` rows, positional bindings, a pluck'd `EXISTS` for the
   linked-ness check, and removal of per-doc object spreads/allocations in
-  the hot path (in `index.js`). Worth roughly 10% on CPU-bound runs, less
-  file-backed.
+  the hot path (in `index.js`). Worth roughly 10% on CPU-bound runs.
+  Measured in isolation on **disk-backed** WAL databases (A/B against an
+  otherwise-identical build with only these changes reverted, interleaved
+  rounds, median docs/sec): at batch size 100 the effect is within the
+  container's noise floor (create +9%, edit +2%, fork −5%, sync −4%); at
+  batch size 1000, where commit I/O is amortised and per-doc CPU matters
+  more, gains are consistent (create +3%, edit +18%, fork +3%, sync +5%).
+  Net: neutral-to-positive on disk, growing with batch size.
 - Upgrade to better-sqlite3 v13 (N-API): performance parity with v11 on
   this workload — all differences were within noise. Node 18 vs Node 24
   was also mostly a wash (Node 24 faster on create/fork-style workloads,
