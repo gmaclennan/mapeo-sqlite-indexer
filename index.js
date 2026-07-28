@@ -45,7 +45,7 @@ export class DbApi {
   #writeBacklinkSql
   #updateForksSql
   #deleteAll
-  #tableInfo
+  #writeColumns
 
   /**
    * @param {import('better-sqlite3').Database} db
@@ -55,9 +55,13 @@ export class DbApi {
    */
   constructor(db, { docTableName, backlinkTableName }) {
     assertValidSchema(db, { docTableName, backlinkTableName })
-    const tableInfo = (this.#tableInfo = /** @type {ColumnInfo[]} */ (
+    const tableInfo = /** @type {ColumnInfo[]} */ (
       db.prepare(`PRAGMA table_info(${docTableName})`).all()
-    ))
+    )
+    this.#writeColumns = tableInfo.map(({ name, dflt_value }) => ({
+      name,
+      dflt: parseSqlDefault(dflt_value),
+    }))
     const docColumns = tableInfo.map(({ name }) => name)
     this.#getDocSql = db.prepare(
       `SELECT docId, versionId, links, forks, updatedAt
@@ -103,12 +107,12 @@ export class DbApi {
    * @param {IndexedDocument<TDoc>} doc
    */
   writeDoc(doc) {
-    /** @type {Record<string, string | number | null>} */
+    /** @type {Record<string, any>} */
     const flattenedDoc = {}
-    for (const { name, dflt_value } of this.#tableInfo) {
+    for (const { name, dflt } of this.#writeColumns) {
       const value = /** @type {Record<string, any>} */ (doc)[name]
       if (value === null || typeof value === 'undefined') {
-        flattenedDoc[name] = dflt_value
+        flattenedDoc[name] = dflt
       } else if (typeof value === 'boolean') {
         flattenedDoc[name] = value ? 1 : 0
       } else if (typeof value === 'object') {
@@ -124,16 +128,20 @@ export class DbApi {
    * @param {IndexedDocument<IndexableDocument>["forks"]} forks
    */
   updateForks(docId, forks) {
-    this.#updateForksSql.run({
-      docId: docId,
-      forks: JSON.stringify(forks),
-    })
+    this.#updateForksSql.run({ docId, forks: JSON.stringify(forks) })
   }
   /**
    * @param {string} versionId
    */
   getBacklink(versionId) {
     return this.#getBacklinkSql.get(versionId)
+  }
+  /**
+   * @param {string} versionId
+   * @returns {boolean}
+   */
+  hasBacklink(versionId) {
+    return !!this.#getBacklinkSql.get(versionId)
   }
   /**
    * @param {string} versionId
@@ -202,17 +210,34 @@ export default class SqliteIndexer {
 
       if (!existing) {
         this.#dbApi.writeDoc({ ...doc, forks: [] })
+      } else if (
+        existing.versionId === doc.versionId ||
+        existing.forks.includes(doc.versionId)
+      ) {
+        // This version is already indexed (e.g. the same data was re-synced
+        // or re-indexed), so there is nothing new to index. Nothing can need
+        // pruning from existing forks here: forks are never linked, and all
+        // of this doc's links became linked when it was first indexed. NB:
+        // this assumes a versionId always re-arrives with the same links
+        // array, which holds for content-addressed version ids.
+        continue
       } else if (this.isLinked(existing.versionId)) {
         // console.log('existing linked', existing.version)
-        // The existing doc for this ID is now linked, so we can replace it
-        this.#dbApi.writeDoc({ ...doc, forks: [] })
+        // The existing doc for this ID is now linked, so we can replace it.
+        // Any unresolved forks of the existing doc (not pruned above by this
+        // doc's links) are still unlinked, so they are forks of the new head.
+        this.#dbApi.writeDoc({ ...doc, forks: existing.forks })
       } else {
         // console.log('is forked', doc, existing)
         // Document is forked, so we need to select a "winner"
         const winner = this.#getWinner(existing, doc)
         // console.log('winner', winner)
-        // TODO: Can the forks Set get out of date over time? E.g. could some of
-        // the forks end up being linked by a doc that is indexed later on?
+        // NB: forks store only versionIds, so getWinner can never be re-run
+        // against a fork after this point. If getWinner's choice disagrees
+        // with causal order (clock skew, or equal updatedAt across a fork),
+        // the losing branch can end up as the permanent head and different
+        // arrival orders can produce different heads. See the known
+        // limitations documented in test/winner-staleness.test.js.
         if (winner === existing) {
           existing.forks.push(doc.versionId)
           this.#dbApi.updateForks(existing.docId, existing.forks)
@@ -226,7 +251,7 @@ export default class SqliteIndexer {
 
   /** @param {string} versionId */
   isLinked(versionId) {
-    return !!this.#dbApi.getBacklink(versionId)
+    return this.#dbApi.hasBacklink(versionId)
   }
 
   deleteAll() {
@@ -246,6 +271,23 @@ export function defaultGetWinner(docA, docB) {
   if (docB.updatedAt > docA.updatedAt) return docB
   // They are equal or no timestamp property, so sort by version to ensure winner is deterministic
   return docA.versionId > docB.versionId ? docA : docB
+}
+
+/**
+ * `PRAGMA table_info` returns a column's default as raw SQL text (e.g. the
+ * five characters `'foo'` for `DEFAULT 'foo'`), so parse it into the value
+ * that SQLite itself would store. Expression defaults (e.g.
+ * CURRENT_TIMESTAMP) are not evaluated and are stored as their SQL text.
+ *
+ * @param {any} dfltValue
+ * @returns {string | number | null}
+ */
+function parseSqlDefault(dfltValue) {
+  if (dfltValue == null || /^NULL$/i.test(dfltValue)) return null
+  const str = /^'(.*)'$/s.exec(dfltValue)
+  if (str) return str[1].replace(/''/g, "'")
+  const num = Number(dfltValue)
+  return Number.isNaN(num) ? dfltValue : num
 }
 
 /**
